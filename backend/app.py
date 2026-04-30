@@ -3,48 +3,64 @@ import pickle
 import pandas as pd
 from flask_cors import CORS
 import os
-import requests
+import gdown
 
 app = Flask(__name__)
 CORS(app)
 
-# ✅ Google Drive direct download link
-MODEL_URL = "https://drive.google.com/uc?id=1-fjQLYqRi4TNApFgEVM8DF09PtX7rziE"
 MODEL_PATH = "pipe.pkl"
+FILE_ID = "1-fjQLYqRi4TNApFgEVM8DF09PtX7rziE"
 
-# ✅ Download model if not present
-if not os.path.exists(MODEL_PATH):
+# ✅ Always re-download (prevents corrupted file issue)
+def download_model():
     print("⬇️ Downloading model...")
-    response = requests.get(MODEL_URL)
-    with open(MODEL_PATH, "wb") as f:
-        f.write(response.content)
-    print("✅ Model downloaded")
+    url = f"https://drive.google.com/uc?id={FILE_ID}"
+    gdown.download(url, MODEL_PATH, quiet=False)
 
-# ✅ Load model
-pipe = pickle.load(open(MODEL_PATH, "rb"))
+    # ✅ Validate file size (basic check)
+    if os.path.getsize(MODEL_PATH) < 1000000:  # <1MB means wrong file
+        raise Exception("Downloaded file is invalid!")
+
+    print("✅ Model ready")
+
+# 🔥 Ensure model is correct
+try:
+    download_model()
+    pipe = pickle.load(open(MODEL_PATH, "rb"))
+except Exception as e:
+    print("❌ Model loading failed:", e)
+    pipe = None
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    if pipe is None:
+        return jsonify({"error": "Model not loaded"}), 500
+
     data = request.json
 
-    df = pd.DataFrame([{
-        'batting_team': data['batting_team'],
-        'bowling_team': data['bowling_team'],
-        'city': data['city'],
-        'runs_left': float(data['runs_left']),
-        'balls_left': float(data['balls_left']),
-        'wickets': float(data['wickets']),
-        'total_runs_x': float(data['target']),
-        'crr': float(data['crr']),
-        'rrr': float(data['rrr'])
-    }])
+    try:
+        df = pd.DataFrame([{
+            'batting_team': data['batting_team'],
+            'bowling_team': data['bowling_team'],
+            'city': data['city'],
+            'runs_left': float(data['runs_left']),
+            'balls_left': float(data['balls_left']),
+            'wickets': float(data['wickets']),
+            'total_runs_x': float(data['target']),
+            'crr': float(data['crr']),
+            'rrr': float(data['rrr'])
+        }])
 
-    result = pipe.predict_proba(df)
+        result = pipe.predict_proba(df)
 
-    return jsonify({
-        'win': round(result[0][1] * 100, 2),
-        'lose': round(result[0][0] * 100, 2)
-    })
+        return jsonify({
+            'win': round(result[0][1] * 100, 2),
+            'lose': round(result[0][0] * 100, 2)
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
