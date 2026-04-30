@@ -14,7 +14,7 @@ FILE_ID = "1-fjQLYqRi4TNApFgEVM8DF09PtX7rziE"
 # ✅ Always re-download (prevents corrupted file issue)
 def download_model():
     print("⬇️ Downloading model...")
-    url = f"https://drive.google.com/uc?id={FILE_ID}"
+    url = f"https://drive.google.com/file/d/1-fjQLYqRi4TNApFgEVM8DF09PtX7rziE/view?usp=drive_link"
     gdown.download(url, MODEL_PATH, quiet=False)
 
     # ✅ Validate file size (basic check)
